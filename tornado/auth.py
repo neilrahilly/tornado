@@ -277,7 +277,7 @@ class OAuthMixin(object):
             oauth_signature_method="HMAC-SHA1",
             oauth_timestamp=str(int(time.time())),
             oauth_nonce=binascii.b2a_hex(uuid.uuid4().bytes),
-            oauth_version=getattr(self, "_OAUTH_VERSION", "1.0a"),
+            oauth_version=self._get_version_param(),
         )
         if getattr(self, "_OAUTH_VERSION", "1.0a") == "1.0a":
             if callback_uri:
@@ -313,7 +313,7 @@ class OAuthMixin(object):
             oauth_signature_method="HMAC-SHA1",
             oauth_timestamp=str(int(time.time())),
             oauth_nonce=binascii.b2a_hex(uuid.uuid4().bytes),
-            oauth_version=getattr(self, "_OAUTH_VERSION", "1.0a"),
+            oauth_version=self._get_version_param(),
         )
         if "verifier" in request_token:
           args["oauth_verifier"]=request_token["verifier"]
@@ -362,7 +362,7 @@ class OAuthMixin(object):
             oauth_signature_method="HMAC-SHA1",
             oauth_timestamp=str(int(time.time())),
             oauth_nonce=binascii.b2a_hex(uuid.uuid4().bytes),
-            oauth_version=getattr(self, "_OAUTH_VERSION", "1.0a"),
+            oauth_version=self._get_version_param(),
         )
         args = {}
         args.update(base_args)
@@ -375,6 +375,15 @@ class OAuthMixin(object):
                                          access_token)
         base_args["oauth_signature"] = signature
         return base_args
+
+    def _get_version_param(self):
+        version = getattr(self, "_OAUTH_VERSION", "1.0")
+        # OAuth spec expects "1.0"
+        # https://groups.google.com/forum/#!topic/python-tornado/7iTWjLEiCCk
+        if version == "1.0a":
+            version = "1.0"
+        return version
+
 
 class OAuth2Mixin(object):
     """Abstract implementation of OAuth v 2."""
