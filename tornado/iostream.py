@@ -119,9 +119,18 @@ class IOStream(object):
         try:
             self.socket.connect(address)
         except socket.error, e:
-            # In non-blocking mode connect() always raises an exception
+            # In non-blocking mode we expect connect() to raise an
+            # exception with EINPROGRESS or EWOULDBLOCK.
+            #
+            # On freebsd, other errors such as ECONNREFUSED may be
+            # returned immediately when attempting to connect to
+            # localhost, so handle them the same way as an error
+            # reported later in _handle_connect.
             if e.args[0] not in (errno.EINPROGRESS, errno.EWOULDBLOCK):
-                raise
+                logging.warning("Connect error on fd %d: %s",
+                                self.socket.fileno(), e)
+                self.close()
+                return
         self._connect_callback = stack_context.wrap(callback)
         self._add_io_state(self.io_loop.WRITE)
 
@@ -161,7 +170,7 @@ class IOStream(object):
         ``callback`` will be empty.
         """
         assert not self._read_callback, "Already reading"
-        assert isinstance(num_bytes, int)
+        assert isinstance(num_bytes, (int, long))
         self._read_bytes = num_bytes
         self._read_callback = stack_context.wrap(callback)
         self._streaming_callback = stack_context.wrap(streaming_callback)
@@ -202,7 +211,10 @@ class IOStream(object):
         """
         assert isinstance(data, bytes_type)
         self._check_closed()
-        self._write_buffer.append(data)
+        if data:
+            # We use bool(_write_buffer) as a proxy for write_buffer_size>0,
+            # so never put empty strings in the buffer.
+            self._write_buffer.append(data)
         self._write_callback = stack_context.wrap(callback)
         self._handle_write()
         if self._write_buffer:
